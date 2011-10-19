@@ -1,19 +1,20 @@
 /*
  * Copyright (C) 2011 Secretariat of the Pacific Community
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This file is part of TUBS.
  *
- * This program is distributed in the hope that it will be useful,
+ * TUBS is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * TUBS is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with TUBS.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.spc.ofp.tubs.importer;
 
@@ -39,9 +40,16 @@ import org.spc.ofp.observer.domain.Vessel;
 import org.spc.ofp.observer.domain.VesselSighting;
 import org.spc.ofp.observer.domain.purseseine.DayLog;
 import org.spc.ofp.observer.domain.purseseine.FishingDay;
+import org.spc.ofp.observer.domain.purseseine.LengthFrequencyDetail;
+import org.spc.ofp.observer.domain.purseseine.LengthFrequencyHeader;
+import org.spc.ofp.tubs.domain.AuditEntry;
 import org.spc.ofp.tubs.domain.common.CommonRepository;
 import org.spc.ofp.tubs.domain.purseseine.Activity;
+import org.spc.ofp.tubs.domain.purseseine.Brail;
 import org.spc.ofp.tubs.domain.purseseine.Day;
+import org.spc.ofp.tubs.domain.purseseine.FishingSet;
+import org.spc.ofp.tubs.domain.purseseine.LengthSample;
+import org.spc.ofp.tubs.domain.purseseine.LengthSamplingHeader;
 
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -232,20 +240,150 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 			)			
 		);
 		activity.setLocalTime(combine(dl.getActdate(), dl.getActtime()));
-		// FIXME Activity is missing UTC time
+		activity.setUtcTime(combine(dl.getUtc_adate(), dl.getUtc_atime()));
 		
 		activity.setBeacon(dl.getBeacon());
 		activity.setComments(dl.getComment());
 		activity.setEezCode(dl.getEz_id());
-		activity.setFishingDays(new BigDecimal(dl.getFish_days())); // TODO Confirm BigDecimal c'tor reacts appropriately to null value
+		BigDecimal fishingDays = null;
+		if (null != dl.getFish_days()) {
+			fishingDays = new BigDecimal(dl.getFish_days());
+		}
+		activity.setFishingDays(fishingDays);
 		activity.setLatitude(dl.getLat_long());
 		activity.setLongitude(dl.getLon_long());
-		activity.setPayao(null); // TODO Confirm this isn't missing in source item
 		activity.setSeaState(asTubsSeaState(dl.getSea_id()));
 		activity.setWindDirection(dl.getWinddir());
 		activity.setWindSpeed(dl.getWind_kts());
 		
+		// Only set this for an appropriate activity
+		// This is a shortcut for the referenceId ACTIVE/Fishing that currently has id = 1
+		if (null != dl.getS_act_id() && 1 == dl.getS_act_id().intValue()) {		
+			activity.setFishingSet(asTubsFishingSet(dl));
+			
+		}
+		activity.setAuditEntry(new AuditEntry(dl.getEnteredby(), dl.getInserttime()));
 		return activity;
+	}
+	
+	protected Boolean containsSpecies(final Integer percentage) {
+		if (null == percentage) { return null; }
+		return percentage.intValue() > 0;
+	}
+	
+	protected FishingSet asTubsFishingSet(final DayLog dl) {
+		final FishingSet fset = new FishingSet();
+		fset.setSetNumber(dl.getSetno());
+		fset.setStartTime(combine(dl.getActdate(), dl.getActtime()));
+		fset.setWeightOnBoard(dl.getLd_onboard());
+		fset.setWeightOnBoardFromLog(dl.getLd_ves_onb());
+		fset.setObservedSetRetainedTonnage(dl.getLd_tonnage());
+		fset.setSetRetainedTonnageFromLog(dl.getLd_ves_ton());
+		fset.setObservedNewOnboard(dl.getLd_newonbo());
+		fset.setNewOnboardFromLog(dl.getLd_ves_new());
+		fset.setTonsOfTunaObserved(dl.getTuna_catch());
+		fset.setSumOfBrail1(dl.getLd_brails());
+		fset.setSumOfBrail2(dl.getLd_brails2());
+		fset.setVesselTonnageOnlyFromThisSet(dl.getOneset());
+		fset.setTotalCatch(dl.getTot_catch());
+		fset.setComments(dl.getPs3_commen());
+		
+		// Set a boolean true if percentage is greater than zero, null otherwise
+		final Integer percentSKJ = dl.getPerc_skj();		
+		fset.setSkipjackPercentage(percentSKJ);
+		fset.setContainsSkipjack(containsSpecies(percentSKJ));
+				
+		final Integer percentBET = dl.getPerc_bet();
+		fset.setBigeyePercentage(percentBET);
+		fset.setContainsBigeye(containsSpecies(percentBET));
+		
+		final Integer percentYFT = dl.getPerc_yft();
+		fset.setYellowfinPercentage(percentYFT);
+		fset.setContainsYellowfin(containsSpecies(percentYFT));
+		
+		fset.setLargeSpecies(dl.getB_sp_id());
+		fset.setLargeSpeciesCount(dl.getB_nbspecie());
+		
+		// Convert set times to java.util.Date in a rational way
+		fset.setSkiffOff(combine(dl.getActdate(), dl.getActtime())); // NO separate Skiff Off in Observer?
+		fset.setWinchOn(combine(dl.getActdate(), dl.getWnch_on()));
+		fset.setRingUp(combine(dl.getActdate(), dl.getRing_up()));
+		fset.setStartOfBrail(combine(dl.getActdate(), dl.getSbrail()));
+		fset.setEndOfBrail(combine(dl.getActdate(), dl.getEbrail()));
+
+		fset.setLengthSamples(asTubsLengthSamples(dl));
+		fset.setAuditEntry(new AuditEntry(dl.getEnteredby(), dl.getInserttime()));
+		return fset;
+	}
+	
+	protected List<LengthSamplingHeader> asTubsLengthSamples(final DayLog dl) {
+		if (null == dl || null == dl.getHeaders()) { return Collections.emptyList(); }
+		final List<LengthFrequencyHeader> headers = dl.getHeaders();
+		
+		final List<LengthSamplingHeader> tubsHeaders =
+		    new ArrayList<LengthSamplingHeader>(headers.size());
+		for (final LengthFrequencyHeader lfh : headers) {
+			final LengthSamplingHeader header = new LengthSamplingHeader();						
+			header.setBrailStartTime(dl.getSbrail());
+			header.setBrailEndTime(dl.getEbrail());
+			header.setFormId(lfh.getNbformused());
+			//final ReferenceId protocol = ;
+			header.setProtocolType(
+			    repo.findReferenceValueById(
+			        DataCleaner.getSamplingProtocol(lfh.getProtocol())));
+			
+			// Ignore for now - CLC
+			//header.setPageTotals(pageTotals); // Single domain object
+			//header.setColumnTotals(columnTotals); // List of domain objects
+			final List<Brail> brails = new ArrayList<Brail>(1);
+			final Brail brail = new Brail();
+			brail.setComments(lfh.getProt_comme());
+			brail.setFishPerBrail(lfh.getFish_brl());
+			brail.setBrailNumber(lfh.getWhichbrail());
+			
+			brail.setFullBrailCount(lfh.getBrail_full());
+			brail.setSevenEighthsBrailCount(lfh.getBrail_78());
+			brail.setThreeQuartersBrailCount(lfh.getBrail_34());
+			brail.setTwoThirdsBrailCount(lfh.getBrail_23());
+			brail.setOneHalfBrailCount(lfh.getBrail_12());
+			brail.setOneThirdBrailCount(lfh.getBrail_13());
+			brail.setOneQuarterBrailCount(lfh.getBrail_14());
+			brail.setOneEighthBrailCount(lfh.getBrail_18());
+			
+			brail.setTotalBrailCount(lfh.getTbrail());
+			brail.setSumOfAllBrails(lfh.getSum_brails());
+			
+			brail.setPageNumber(lfh.getPage_no());
+			
+			brail.setAuditEntry(new AuditEntry(lfh.getEnteredby(), lfh.getInserttime()));
+			brails.add(brail);			
+			header.setBrails(brails); // List of domain objects
+			
+			header.setSamples(asTubsLengthSamples(lfh.getDetails())); // List of domain objects
+			
+			header.setAuditEntry(new AuditEntry(dl.getEnteredby(), dl.getInserttime()));
+			tubsHeaders.add(header);
+		}
+		return tubsHeaders;
+	}
+	
+	protected LengthSample asTubsLengthSample(final LengthFrequencyDetail detail) {
+		final LengthSample sample = new LengthSample();
+		sample.setLength(detail.getLen());
+		sample.setSampleNumber(detail.getSample_no());
+		sample.setSpeciesCode(detail.getSp_id());
+        sample.setAuditEntry(getAuditEntry());
+		return sample;
+	}
+	
+	protected List<LengthSample> asTubsLengthSamples(final List<LengthFrequencyDetail> details) {
+		if (null == details) { return Collections.emptyList(); }
+		final List<LengthSample> lengthSamples = new ArrayList<LengthSample>(details.size());
+		for (final LengthFrequencyDetail detail : details) {
+			if (null == detail) { continue; }
+			lengthSamples.add(asTubsLengthSample(detail));
+		}
+		return lengthSamples;
 	}
 	
 	protected Day asTubsDay(final FishingDay observerDay) {
@@ -260,17 +398,8 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		tubsDay.setUtcStartOfDay(combine(observerDay.getUtc_date(), observerDay.getUtc_time()));
 		
 		tubsDay.setActivities(asTubsActivities(observerDay.getActivities()));
-		
-		/*
-		tubsDay.setActivities(activities);
-		tubsDay.setDiaryPage(diaryPage);
-		tubsDay.setGen3Flag(gen3Flag);
-	
-		
-		// TODO Convert this to AuditEntry
-		observerDay.getEnteredby();
-		observerDay.getInserttime();
-		*/
+		// No audit trail in source system
+		tubsDay.setAuditEntry(getAuditEntry());
 		return tubsDay;
 	}
 	
@@ -308,6 +437,7 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 			header.setDateForThirdComment(gen3.getDate3());
 			header.setThirdComment(gen3.getComment3());	
 		}
+		// No audit trail in source system
 		header.setAuditEntry(getAuditEntry());
 		// NOTE Legacy data setup doesn't have any details.
 		return header;
@@ -338,7 +468,7 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		report.setVesselName(preport.getVesselname());
 		report.setWindDirection(preport.getWinddir());
 		report.setWindSpeed(preport.getWindspeed());
-		report.setAuditEntry(getAuditEntry());
+		report.setAuditEntry(getAuditEntry()); // No audit trail in source system
 		// Fill details
 		final List<org.spc.ofp.tubs.domain.PollutionReportDetails> details =
 		    new ArrayList<org.spc.ofp.tubs.domain.PollutionReportDetails>(

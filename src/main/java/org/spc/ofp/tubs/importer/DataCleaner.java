@@ -51,6 +51,13 @@ public class DataCleaner {
 		}
 	}
 	
+	public static long getSamplingProtocol(final String code) {
+		if (null == code) { return 89; }
+		return "N".equalsIgnoreCase(code.trim()) ? 88L :
+			   "S".equalsIgnoreCase(code.trim()) ? 90L :
+			   89L;
+	}
+	
 	public static Integer getGen6Material(final String value) {
 		if (null == value) { return null; }
 		final char c = value.trim().charAt(0);
