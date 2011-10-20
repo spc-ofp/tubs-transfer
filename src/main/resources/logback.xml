@@ -6,6 +6,8 @@
 			</pattern>
 		</encoder>
 	</appender>
+	<logger name="org.hibernate.SQL" level="trace" />
+	<logger name="org.hibernate.type" level="trace" />
 	<logger name="org.spc.ofp" level="warn" />
 	<logger name="org.spc.ofp.tubs.importer.TubsTripProcessor" level="debug" />
 	<logger name = "org.spc.ofp.tubs.importer.ObserverTripProcessor" level="debug" />

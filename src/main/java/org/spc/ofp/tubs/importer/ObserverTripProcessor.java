@@ -24,7 +24,7 @@ import javax.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spc.ofp.observer.domain.FieldStaffRepository;
-import org.spc.ofp.observer.domain.Trip;
+import org.spc.ofp.observer.domain.ITrip;
 import org.spc.ofp.observer.domain.TripRepository;
 import org.spc.ofp.observer.domain.VesselRepository;
 import org.spc.ofp.observer.domain.longline.LongLineTrip;
@@ -39,7 +39,7 @@ import com.google.common.base.Preconditions;
  * @author Corey Cole <coreyc@spc.int>
  *
  */
-public class ObserverTripProcessor implements ItemProcessor<String, Trip> {
+public class ObserverTripProcessor implements ItemProcessor<String, ITrip> {
 
 	@Resource(name = "observer.TripRepository")
 	TripRepository tripRepo;
@@ -55,7 +55,7 @@ public class ObserverTripProcessor implements ItemProcessor<String, Trip> {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ObserverTripProcessor.class);
 	
-	public Trip process(final String tripId) throws Exception {
+	public ITrip process(final String tripId) throws Exception {
 		Preconditions.checkNotNull(tripId, "TripId is null");
 		Preconditions.checkArgument(!"".equalsIgnoreCase(tripId.trim()), "TripId is blank");
 		final long id = Long.parseLong(tripId); // Let parseLong throw the exception if it's not numeric
@@ -87,7 +87,9 @@ public class ObserverTripProcessor implements ItemProcessor<String, Trip> {
 	
 	private PurseSeineTrip processPurseSeine(final long tripId) {
 		LOGGER.debug(String.format("ObserverTripProcessor thinks tripId={%s} is a Purse Seine trip", tripId));
-		return purseSeineTripRepo.findById(tripId);
+		final PurseSeineTrip pst = purseSeineTripRepo.findById(tripId);
+		LOGGER.debug(String.format("Purse Seine trip has %d fishing day entities", pst.getFishingDays().size()));
+		return pst;
 	}
 	
 	private LongLineTrip processLongLine(final long tripId) {	

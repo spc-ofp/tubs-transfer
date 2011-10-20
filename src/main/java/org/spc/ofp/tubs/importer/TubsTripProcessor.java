@@ -35,7 +35,7 @@ import org.spc.ofp.observer.domain.Gen3;
 import org.spc.ofp.observer.domain.Gen6Detail;
 import org.spc.ofp.observer.domain.Gen6Header;
 import org.spc.ofp.observer.domain.Port;
-import org.spc.ofp.observer.domain.Trip;
+import org.spc.ofp.observer.domain.ITrip;
 import org.spc.ofp.observer.domain.Vessel;
 import org.spc.ofp.observer.domain.VesselSighting;
 import org.spc.ofp.observer.domain.purseseine.DayLog;
@@ -58,7 +58,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * @author Corey Cole <coreyc@spc.int>
  *
  */
-public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.domain.Trip> {
+public class TubsTripProcessor implements ItemProcessor<ITrip, org.spc.ofp.tubs.domain.Trip> {
 
 	@Autowired
 	protected CommonRepository repo;
@@ -98,7 +98,7 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		return answer == null ? null : answer ? "Y" : "N";
 	}
 	
-	public org.spc.ofp.tubs.domain.Trip process(Trip trip) throws Exception {
+	public org.spc.ofp.tubs.domain.Trip process(final ITrip trip) throws Exception {
 		// TODO Is this what we want? 
 		if (null == trip) { 
 			LOGGER.info("Input object was null, skipping...");
@@ -110,20 +110,25 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		LOGGER.debug("isLongLineTrip()? " + trip.isLongLineTrip());
 		LOGGER.debug("isPoleAndLineTrip()? " + trip.isPoleAndLineTrip());
 		
+		final org.spc.ofp.tubs.domain.Trip tubsTrip =
+		    trip.isPurseSeineTrip() ? new org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip() :
+		    trip.isLongLineTrip() ? new org.spc.ofp.tubs.domain.longline.LongLineTrip() :
+		    null;
+		
+		/*
 		// Convert the generic 'trip' to a strongly-typed version based on gear.
 		// At the same time, create a strongly-typed target trip.
 		org.spc.ofp.tubs.domain.Trip tubsTrip = null;
 		if (trip.isPurseSeineTrip()) {
-			LOGGER.debug("Incoming trip is purse seine.  Converting source trip");
-			trip = new org.spc.ofp.observer.domain.purseseine.PurseSeineTrip(trip);
+			LOGGER.debug("Incoming trip is purse seine.");
 			tubsTrip = new org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip();
 		} else if (trip.isLongLineTrip()) {
-			LOGGER.debug("Incoming trip is long line.  Converting source trip");
-			trip = new org.spc.ofp.observer.domain.longline.LongLineTrip(trip);
+			LOGGER.debug("Incoming trip is long line.");
 			tubsTrip = new org.spc.ofp.tubs.domain.longline.LongLineTrip();
 		} else {
 			LOGGER.debug("Incoming trip has unsupported gear type: " + trip.getGearType());
 		}
+		*/
 
 		LOGGER.debug("After checking for trip type, 'tubsTrip' is null? " + (null == tubsTrip));    
 		// Skip trips with unsupported gear types.
@@ -160,18 +165,18 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		
 		// GEN-6
 		tubsTrip.setPollutionReports(asTubsGen6(trip.getPollutionReports()));
-		
-		
+				
 		// Fill object graph based on gear type
 		if (trip.isPurseSeineTrip()) {
-			tubsTrip = fillPurseSeineDetails(
+			return fillPurseSeineDetails(
 					(org.spc.ofp.observer.domain.purseseine.PurseSeineTrip) trip,
 					(org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip) tubsTrip);
 		} else if (trip.isLongLineTrip()) {
-			tubsTrip = fillLongLineDetails(
+			return fillLongLineDetails(
 					(org.spc.ofp.observer.domain.longline.LongLineTrip) trip,
 					(org.spc.ofp.tubs.domain.longline.LongLineTrip) tubsTrip);
 		}
+		// Should never get here...
 		return tubsTrip;
 	}
 	
@@ -183,7 +188,7 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		// DayLog holds most of the Purse Seine specific observer data	
 		// SNARK Right about here lambda functionality would come in handy...
 		tubsTrip.setDays(asTubsDays(obsvTrip.getFishingDays()));
-		obsvTrip.getDaylogs();
+		LOGGER.debug(String.format("Copied %d days into TUBS trip", tubsTrip.getDays().size()));
 		return tubsTrip;
 	}
 	
@@ -202,10 +207,14 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 	}
 	
 	protected List<Day> asTubsDays(final List<FishingDay> observerDays) {
-		if (null == observerDays) { return Collections.emptyList(); }
+		if (null == observerDays) { 
+			LOGGER.debug("Null FishingDay -- Huh?");
+			return Collections.emptyList();
+		}
 		
 		final List<Day> tubsDays = new ArrayList<Day>(observerDays.size());
 		for (final FishingDay fishingDay : observerDays) {
+			LOGGER.debug("Converting legacy FishingDay to TUBS Day");
 			tubsDays.add(asTubsDay(fishingDay));			
 		}
 		return tubsDays;
@@ -218,27 +227,31 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		for (final DayLog activity : dll) {
 			tubsActivities.add(asTubsActivity(activity));
 		}
+		LOGGER.debug(String.format("Copied %d DayLog items as TUBS Activities", tubsActivities.size()));
 		return tubsActivities;
 	}
 	
 	protected Activity asTubsActivity(final DayLog dl) {
 		if (null == dl) { return null; }
 		Activity activity = new Activity();
-		activity.setActivityType(
-			repo.findReferenceValueById
-				(DataCleaner.getPurseSeineActivity(dl.getS_act_id())
-			)
-		);
-		activity.setDetectionMethod(
-			repo.findReferenceValueById
-				(DataCleaner.getPurseSeineDetection(dl.getDet_id())
-			)	
-		);
-		activity.setAssociationType(
-			repo.findReferenceValueById
-				(DataCleaner.getPurseSeineAssociation(dl.getSch_id())
-			)			
-		);
+		final Integer activityId = DataCleaner.getPurseSeineActivity(dl.getS_act_id());
+		if (null != activityId) {
+			activity.setActivityType(
+				repo.findReferenceValueById(activityId)
+			);
+		}
+		final Integer detectionId = DataCleaner.getPurseSeineDetection(dl.getDet_id());
+		if (null != detectionId) {
+			activity.setDetectionMethod(
+				repo.findReferenceValueById(detectionId)	
+			);
+		}
+		final Integer associationId = DataCleaner.getPurseSeineAssociation(dl.getSch_id());
+		if (null != associationId) {
+			activity.setAssociationType(
+				repo.findReferenceValueById(associationId)			
+			);
+		}
 		activity.setLocalTime(combine(dl.getActdate(), dl.getActtime()));
 		activity.setUtcTime(combine(dl.getUtc_adate(), dl.getUtc_atime()));
 		
@@ -247,7 +260,8 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		activity.setEezCode(dl.getEz_id());
 		BigDecimal fishingDays = null;
 		if (null != dl.getFish_days()) {
-			fishingDays = new BigDecimal(dl.getFish_days());
+			fishingDays = BigDecimal.valueOf(dl.getFish_days().doubleValue()).setScale(7);
+			//fishingDays = new BigDecimal(dl.getFish_days());
 		}
 		activity.setFishingDays(fishingDays);
 		activity.setLatitude(dl.getLat_long());
@@ -259,8 +273,8 @@ public class TubsTripProcessor implements ItemProcessor<Trip, org.spc.ofp.tubs.d
 		// Only set this for an appropriate activity
 		// This is a shortcut for the referenceId ACTIVE/Fishing that currently has id = 1
 		if (null != dl.getS_act_id() && 1 == dl.getS_act_id().intValue()) {		
-			activity.setFishingSet(asTubsFishingSet(dl));
-			
+			LOGGER.debug("Copying DayLog data into FishingSet");
+			activity.setFishingSet(asTubsFishingSet(dl));			
 		}
 		activity.setAuditEntry(new AuditEntry(dl.getEnteredby(), dl.getInserttime()));
 		return activity;

@@ -46,10 +46,10 @@ public class CopyFromObserver {
 	protected ExistsFilterProcessor existsFilterProcessor;
 	
 	@Resource(name = "ObserverTripProcessor")
-	protected ItemProcessor<String, org.spc.ofp.observer.domain.Trip> observerTripProcessor;
+	protected ItemProcessor<String, org.spc.ofp.observer.domain.ITrip> observerTripProcessor;
 	
 	@Resource(name = "TubsTripProcessor")
-	protected ItemProcessor<org.spc.ofp.observer.domain.Trip, org.spc.ofp.tubs.domain.Trip> tubsTripProcessor;
+	protected ItemProcessor<org.spc.ofp.observer.domain.ITrip, org.spc.ofp.tubs.domain.Trip> tubsTripProcessor;
 	
 	@Resource(name = "purseseine.TripRepository")
 	protected org.spc.ofp.tubs.domain.purseseine.TripRepository targetTripRepository;
@@ -100,9 +100,7 @@ public class CopyFromObserver {
 				if (null == checkedId || "".equalsIgnoreCase(checkedId.trim())) { continue; }
 				System.out.println("...doesn't exist in target system...");
 				// Convert the ID to an Observer trip
-				final org.spc.ofp.observer.domain.Trip sourceTrip = observerTripProcessor.process(checkedId);
-				if (null == sourceTrip) { continue; }
-				System.out.println("...represents a valid object graph...");
+				final org.spc.ofp.observer.domain.ITrip sourceTrip = observerTripProcessor.process(checkedId);
 				// Convert the Observer trip to a TUBS trip
 				final org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip targetTrip = (PurseSeineTrip)tubsTripProcessor.process(sourceTrip);
 				if (null == targetTrip) { continue; }
@@ -110,7 +108,7 @@ public class CopyFromObserver {
 				// Write the trip using JPA
 				targetTripRepository.save(targetTrip);
 				System.out.println("...written to target DB with ID=" + targetTrip.getId());
-				// TODO Move this out to store regardless of success
+				// TODO Move this out to store status regardless of success
 				final ImportStatus status = new ImportStatus();
 				status.setSourceId(id);
 				status.setTripId(targetTrip.getId());

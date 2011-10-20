@@ -35,12 +35,12 @@ public class CopyFromObserverConfig {
 	}
 	
 	@Bean(name = "ObserverTripProcessor")
-	public ItemProcessor<String, org.spc.ofp.observer.domain.Trip> observerTripProcessor() {
+	public ItemProcessor<String, org.spc.ofp.observer.domain.ITrip> observerTripProcessor() {
 		return new ObserverTripProcessor();
 	}
 	
 	@Bean(name = "TubsTripProcessor")
-	public ItemProcessor<org.spc.ofp.observer.domain.Trip, org.spc.ofp.tubs.domain.Trip> tubsTripProcessor() {
+	public ItemProcessor<org.spc.ofp.observer.domain.ITrip, org.spc.ofp.tubs.domain.Trip> tubsTripProcessor() {
 		return new TubsTripProcessor(); 
 	}
 }
