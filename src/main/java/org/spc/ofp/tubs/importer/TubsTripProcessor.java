@@ -327,7 +327,52 @@ public class TubsTripProcessor implements ItemProcessor<ITrip, org.spc.ofp.tubs.
 
 		fset.setLengthSamples(asTubsLengthSamples(dl));
 		fset.setAuditEntry(new AuditEntry(dl.getEnteredby(), dl.getInserttime()));
+		fset.setCatchList(asTubsSetCatch(dl.getSetCatchList()));
 		return fset;
+	}
+	
+	protected List<org.spc.ofp.tubs.domain.purseseine.SetCatch> asTubsSetCatch(final List<org.spc.ofp.observer.domain.purseseine.SetCatch> scl) {
+		if (null == scl) { return Collections.emptyList(); }
+		final List<org.spc.ofp.tubs.domain.purseseine.SetCatch> tubsSetCatchList =
+		    new ArrayList<org.spc.ofp.tubs.domain.purseseine.SetCatch>(scl.size());
+		
+		for (final org.spc.ofp.observer.domain.purseseine.SetCatch sc : scl) {
+			tubsSetCatchList.add(asTubsSetCatch(sc));
+		}		
+		return tubsSetCatchList;
+	}
+	
+	protected org.spc.ofp.tubs.domain.purseseine.SetCatch asTubsSetCatch(final org.spc.ofp.observer.domain.purseseine.SetCatch sc) {
+		if (null == sc) { return null; }
+		final org.spc.ofp.tubs.domain.purseseine.SetCatch tsc = new org.spc.ofp.tubs.domain.purseseine.SetCatch();
+		tsc.setComments(sc.getComments());
+		
+		if (null != sc.getCond_id() && !sc.getCond_id().trim().isEmpty()) {			
+			tsc.setCondition(repo.findConditionByCode(sc.getCond_id().trim()));
+		}
+		if (null != sc.getFate_id() && !sc.getFate_id().trim().isEmpty()) {
+			tsc.setFate(repo.findFateByCode(sc.getFate_id().trim()));
+		}
+		
+		tsc.setContainsLargeFish(sc.getLargefish());
+		tsc.setCountFromLog(sc.getVesslog());		
+		
+		tsc.setObserverCount(sc.getSp_n());
+		tsc.setObserverWeight(sc.getSp_c());		
+		tsc.setSpeciesCode(sc.getSp_id());
+		tsc.setVesselWeight(sc.getSp_c_ves());
+		tsc.setSpeciesWeightEstimate(sc.getSp_w_est());
+		tsc.setSpeciesWeightHigh(sc.getSp_w_h());
+		tsc.setSpeciesWeightLow(sc.getSp_w_l());
+		tsc.setAuditEntry(getAuditEntry());
+		
+		// FIXME Don't have good names for these properties
+		tsc.setSp_c_est(sc.getSp_c_est());
+		tsc.setSp_c_id(sc.getSp_c_id());
+		tsc.setSp_c_spcomp(sc.getSp_c_spcom());
+		tsc.setSp_n_est(sc.getSp_n_est());
+		tsc.setSp_w_id(sc.getSp_w_id());
+		return tsc;
 	}
 	
 	protected List<LengthSamplingHeader> asTubsLengthSamples(final DayLog dl) {

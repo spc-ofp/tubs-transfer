@@ -6,8 +6,13 @@
 			</pattern>
 		</encoder>
 	</appender>
+	<!-- The Hibernate loggers configured below will log SQL statements and bind parameters out to the console.  -->
+	<!-- That's a lot of data, so don't enable said loggers unless you're debugging an error in which SQL Server -->
+	<!-- complains about a data conversion issue. -->
+	<!--
 	<logger name="org.hibernate.SQL" level="trace" />
 	<logger name="org.hibernate.type" level="trace" />
+	  -->
 	<logger name="org.spc.ofp" level="warn" />
 	<logger name="org.spc.ofp.tubs.importer.TubsTripProcessor" level="debug" />
 	<logger name = "org.spc.ofp.tubs.importer.ObserverTripProcessor" level="debug" />
