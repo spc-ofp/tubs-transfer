@@ -32,6 +32,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.springframework.stereotype.Component;
 
+import com.google.common.base.Throwables;
+
 /**
  * @author Corey Cole <coreyc@spc.int>
  *
@@ -89,10 +91,15 @@ public class CopyFromObserver {
 	public void doCopy() {
 		existsFilterProcessor.setSourceName(SOURCE_NAME);
 		// tripIdRepository is the driving query
-		final List<Long> tripIds = tripIdRepository.findTripIdsByGearAndYear("S", 2L, "1999", "2000");
+		final List<Long> tripIds = tripIdRepository.findTripIdsByGearAndYear("S", 12L, "1999", "2000");
 		for (final Long tripId : tripIds) {
 			final String id = Integer.toString(tripId.intValue());
 			System.out.println("Processing tripId: " + id);
+			final ImportStatus status = new ImportStatus();
+			status.setSourceId(id);			
+			status.setSourceName(SOURCE_NAME);
+			status.setStatus("F"); // Assume import will fail
+			status.setAuditEntry(getAuditEntry());
 			try {
 				// Check to see if trip already exists
 				final String checkedId = existsFilterProcessor.process(id);
@@ -108,22 +115,27 @@ public class CopyFromObserver {
 				// Write the trip using JPA
 				targetTripRepository.save(targetTrip);
 				System.out.println("...written to target DB with ID=" + targetTrip.getId());
-				// TODO Move this out to store status regardless of success
-				final ImportStatus status = new ImportStatus();
-				status.setSourceId(id);
 				status.setTripId(targetTrip.getId());
-				status.setSourceName(SOURCE_NAME);
 				status.setStatus("S");
-				status.setAuditEntry(getAuditEntry());
-				commonRepo.saveImportStatus(status);
 			} catch (Exception ex) {
+				status.setComments(
+				    String.format(
+				        "Error summary: {%s}\nFull stack trace:\n%s",
+				        ex.getMessage(),
+				        Throwables.getStackTraceAsString(ex)
+				    )
+				);
+				
 				System.out.println(
 				    String.format(
 				        "Skipping trip %s due to error {%s}",
 				        id,
-				        ex.getMessage()));
+				        ex.getMessage()
+				    )
+				);
 				ex.printStackTrace(System.err);
 			}
+			commonRepo.saveImportStatus(status);
 		}
 	}
 

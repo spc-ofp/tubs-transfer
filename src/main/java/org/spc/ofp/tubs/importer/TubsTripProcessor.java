@@ -114,28 +114,11 @@ public class TubsTripProcessor implements ItemProcessor<ITrip, org.spc.ofp.tubs.
 		    trip.isPurseSeineTrip() ? new org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip() :
 		    trip.isLongLineTrip() ? new org.spc.ofp.tubs.domain.longline.LongLineTrip() :
 		    null;
-		
-		/*
-		// Convert the generic 'trip' to a strongly-typed version based on gear.
-		// At the same time, create a strongly-typed target trip.
-		org.spc.ofp.tubs.domain.Trip tubsTrip = null;
-		if (trip.isPurseSeineTrip()) {
-			LOGGER.debug("Incoming trip is purse seine.");
-			tubsTrip = new org.spc.ofp.tubs.domain.purseseine.PurseSeineTrip();
-		} else if (trip.isLongLineTrip()) {
-			LOGGER.debug("Incoming trip is long line.");
-			tubsTrip = new org.spc.ofp.tubs.domain.longline.LongLineTrip();
-		} else {
-			LOGGER.debug("Incoming trip has unsupported gear type: " + trip.getGearType());
-		}
-		*/
 
 		LOGGER.debug("After checking for trip type, 'tubsTrip' is null? " + (null == tubsTrip));    
 		// Skip trips with unsupported gear types.
 		if (null == tubsTrip) { return null; }
-		
-		LOGGER.debug("tubsTrip is of type " + tubsTrip.getClass().getName());
-		    
+
 		// Basic stuff
 		tubsTrip.setAuditEntry(getAuditEntry());
 		tubsTrip.setProgramCode(trip.getProgramId());
@@ -208,13 +191,11 @@ public class TubsTripProcessor implements ItemProcessor<ITrip, org.spc.ofp.tubs.
 	
 	protected List<Day> asTubsDays(final List<FishingDay> observerDays) {
 		if (null == observerDays) { 
-			LOGGER.debug("Null FishingDay -- Huh?");
 			return Collections.emptyList();
 		}
 		
 		final List<Day> tubsDays = new ArrayList<Day>(observerDays.size());
 		for (final FishingDay fishingDay : observerDays) {
-			LOGGER.debug("Converting legacy FishingDay to TUBS Day");
 			tubsDays.add(asTubsDay(fishingDay));			
 		}
 		return tubsDays;
@@ -227,7 +208,6 @@ public class TubsTripProcessor implements ItemProcessor<ITrip, org.spc.ofp.tubs.
 		for (final DayLog activity : dll) {
 			tubsActivities.add(asTubsActivity(activity));
 		}
-		LOGGER.debug(String.format("Copied %d DayLog items as TUBS Activities", tubsActivities.size()));
 		return tubsActivities;
 	}
 	
